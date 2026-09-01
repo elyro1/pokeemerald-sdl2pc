@@ -127,7 +127,7 @@ ifeq ($(PORTABLE),1)
     OS_LFLAGS := -lwinmm -lxinput
     BUILD_FEXTENSION := .exe
   else
-    OS_CFLAGS :=
+    OS_CFLAGS := $(shell pkg-config --cflags sdl2)
     OS_LFLAGS := -no-pie
   endif
 
@@ -139,7 +139,11 @@ ifeq ($(PORTABLE),1)
   endif
 
   ifeq ($(TARGET_PLATFORM), PLATFORM_SDL2)
-    PLATFORM_LFLAGS += -lSDL2main -lSDL2
+    ifeq ($(TARGET_OS),WINDOWS)
+      PLATFORM_LFLAGS += -lSDL2main -lSDL2
+    else
+      PLATFORM_LFLAGS += $(shell pkg-config --libs sdl2) -lm
+    endif
   endif
 
   ifeq ($(TARGET_PLATFORM), PLATFORM_WIN32)
@@ -231,17 +235,17 @@ INCLUDE_SCANINC_ARGS := $(INCLUDE_DIRS:%=-I %)
 O_LEVEL ?= 2
 CPPFLAGS := $(INCLUDE_CPP_ARGS) -Wno-trigraphs -DMODERN=$(MODERN)
 ifeq ($(MODERN),0)
-  CPPFLAGS += -I tools/agbcc/include -I tools/agbcc -nostdinc -undef -std=gnu89
+  CPPFLAGS += -std=gnu99 -I tools/agbcc/include -I tools/agbcc -nostdinc -undef -std=gnu89
   CC1 := tools/agbcc/bin/agbcc$(EXE)
   override CFLAGS += -mthumb-interwork -Wimplicit -Wparentheses -Werror -O$(O_LEVEL) -fhex-asm -g
   LIBPATH := -L ../../tools/agbcc/lib
   LIB := $(LIBPATH) -lgcc -lc -L../../libagbsyscall -lagbsyscall
 else ifeq ($(PORTABLE),1)
-  CPPFLAGS += -D NONMATCHING -D PORTABLE -D $(TARGET_PLATFORM) -D $(TILE_RENDERER) -D UBFIX $(CPPFLAGS64) $(PLATFORM_INCLUDES) -I$(SDL_DIR)/include -L$(SDL_DIR)/lib
+  CPPFLAGS += -std=gnu99 -D NONMATCHING -D PORTABLE -D $(TARGET_PLATFORM) -D $(TILE_RENDERER) -D UBFIX $(CPPFLAGS64) $(PLATFORM_INCLUDES) -I$(SDL_DIR)/include -L$(SDL_DIR)/lib
   MODERNCC := $(PREFIX)gcc
   PATH_MODERNCC := PATH="$(PATH)" $(MODERNCC)
   CC1 	:= $(shell $(PREFIX)gcc --print-prog-name=cc1) -quiet
-  override CFLAGS += $(OS_CFLAGS) $(PLATFORM_CFLAGS) -Werror=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wtrigraphs -Wimplicit -Wparentheses -Wunused -m$(BIT_WIDTH) -std=gnu99 $(LEADING_UNDERSCORE_FLAG) -fno-dce -fno-builtin -Wno-unused-function -DPORTABLE -DNONMATCHING -D UBFIX -DMODERN=$(MODERN)
+  override CFLAGS += $(OS_CFLAGS) $(PLATFORM_CFLAGS) -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types -Wno-error=int-conversion -Wtrigraphs -Wimplicit -Wparentheses -Wunused -m$(BIT_WIDTH) -std=gnu99 $(LEADING_UNDERSCORE_FLAG) -fno-dce -fno-builtin -Wno-unused-function -DPORTABLE -DNONMATCHING -D UBFIX -DMODERN=$(MODERN)
   LIB := $(LIBPATH) -lgcc -lc
 else
   # Note: The makefile must be set up to not call these if modern == 0
