@@ -1,5 +1,6 @@
 #ifdef PLATFORM_SDL2
 #include <assert.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
@@ -31,6 +32,7 @@ SDL_Texture *sdlTexture;
 SDL_sem *vBlankSemaphore;
 SDL_atomic_t isFrameAvailable;
 bool speedUp = false;
+bool agb001FilterEnabled = true;
 unsigned int videoScale = 1;
 bool videoScaleChanged = false;
 bool isRunning = true;
@@ -361,6 +363,10 @@ void ProcessEvents(void)
                     //SDL_PauseAudio(1);
                 }
                 break;
+            case SDLK_c:
+                agb001FilterEnabled = !agb001FilterEnabled;
+                printf("AGB-001 color filter %s\n", agb001FilterEnabled ? "enabled" : "disabled");
+                break;
             }
             break;
         case SDL_WINDOWEVENT:
@@ -451,12 +457,47 @@ u16 Platform_GetKeyInput(void)
     return keys;
 }
 
+// Matches mGBA's GBA Color shader using its default sRGB profile:
+// target_gamma = 2.0, darken_screen = 0.5, and luminance = 0.93.
+static void ApplyAgb001ColorFilter(uint16_t *image, size_t pixelCount)
+{
+    const float inputGamma = 2.5f;
+    const float outputGamma = 0.5f;
+    const float luminance = 0.93f;
+
+    for (size_t i = 0; i < pixelCount; i++)
+    {
+        uint16_t pixel = image[i];
+        float red = powf((float)(pixel & 0x1F) / 31.0f, inputGamma) * luminance;
+        float green = powf((float)((pixel >> 5) & 0x1F) / 31.0f, inputGamma) * luminance;
+        float blue = powf((float)((pixel >> 10) & 0x1F) / 31.0f, inputGamma) * luminance;
+
+        float filteredRed = (0.80f * red) + (0.275f * green) - (0.075f * blue);
+        float filteredGreen = (0.135f * red) + (0.64f * green) + (0.225f * blue);
+        float filteredBlue = (0.195f * red) + (0.155f * green) + (0.65f * blue);
+
+        filteredRed = fmaxf(0.0f, fminf(filteredRed, 1.0f));
+        filteredGreen = fmaxf(0.0f, fminf(filteredGreen, 1.0f));
+        filteredBlue = fmaxf(0.0f, fminf(filteredBlue, 1.0f));
+
+        pixel &= 0x8000;
+        pixel |= (uint16_t)(powf(filteredRed, outputGamma) * 31.0f + 0.5f);
+        pixel |= (uint16_t)(powf(filteredGreen, outputGamma) * 31.0f + 0.5f) << 5;
+        pixel |= (uint16_t)(powf(filteredBlue, outputGamma) * 31.0f + 0.5f) << 10;
+        image[i] = pixel;
+    }
+}
+
 void VDraw(SDL_Texture *texture)
 {
     static uint16_t image[DISPLAY_WIDTH * DISPLAY_HEIGHT];
 
     memset(image, 0, sizeof(image));
     DrawFrame(image);
+
+    if (agb001FilterEnabled)
+        ApplyAgb001ColorFilter(image, ARRAY_COUNT(image));
+
     SDL_UpdateTexture(texture, NULL, image, DISPLAY_WIDTH * sizeof (Uint16));
     REG_VCOUNT = 161; // prep for being in VBlank period
 }
