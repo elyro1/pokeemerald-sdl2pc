@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ pc_port ]
+    branches: [ pc_port_ci ]
   pull_request:
-    branches: [ pc_port ]
+    branches: [ pc_port_ci ]
 
 jobs:
   build:
