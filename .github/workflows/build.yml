@@ -21,10 +21,11 @@ jobs:
 
       - name: Checkout syms
         if: ${{ github.event_name == 'push' }}
-        uses: actions/checkout@master
+        uses: actions/checkout@v4
         with:
-          path: symbols
+          repository: pret/pokeemerald
           ref: symbols
+          path: symbols
 
       - name: Checkout agbcc
         uses: actions/checkout@master
